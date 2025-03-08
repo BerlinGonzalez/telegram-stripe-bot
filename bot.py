@@ -1,15 +1,4 @@
 import os
-from telegram.ext import Application
-
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-
-if not BOT_TOKEN:
-    raise ValueError("🚨 ERROR: BOT_TOKEN is missing! Check your environment variables.")
-
-print(f"🔹 BOT_TOKEN Loaded: {BOT_TOKEN[:5]}********")  # Debug: Verifica que se carga el token
-
-application = Application.builder().token(BOT_TOKEN.strip()).build()  # ← 🔥 Agregamos .strip()
-
 import stripe
 import requests
 import random
@@ -19,22 +8,33 @@ from flask import Flask, request, jsonify
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
-# Configuración de API
-FORTNITE_API_KEY = os.getenv("281c13c9-171d1d7d-f0407eee-5aad11aa")
-FORTNITE_API_URL = "https://fortniteapi.io/v2/shop?lang=es"
+# Cargar las variables de entorno
+BOT_TOKEN = os.getenv("7779693447:AAES3qtISilvtOKjQ9oonph918LBQ7odt_I", "").strip()
+STRIPE_SECRET_KEY = os.getenv("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", "").strip()
+WEBHOOK_SECRET = os.getenv("whsec_MHxLNtkVgtZBBJVEcbNGei2uoktiSQdD", "").strip()
+FORTNITE_API_KEY = os.getenv("281c13c9-171d1d7d-f0407eee-5aad11aa", "").strip()
+
+# Verificación de variables obligatorias
+if not BOT_TOKEN:
+    raise ValueError("🚨 ERROR: BOT_TOKEN no está configurado en Railway. Agrega la variable en Railway → Environments.")
+if not STRIPE_SECRET_KEY:
+    raise ValueError("🚨 ERROR: STRIPE_SECRET_KEY no está configurado en Railway.")
+if not FORTNITE_API_KEY:
+    raise ValueError("🚨 ERROR: FORTNITE_API_KEY no está configurado en Railway.")
+
+print(f"🔹 BOT_TOKEN Loaded: {BOT_TOKEN[:5]}********")
+
+# Inicializar aplicación de Telegram
+application = Application.builder().token(BOT_TOKEN).build()
 
 # Configuración de Stripe
-stripe.api_key = os.getenv("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")
-WEBHOOK_SECRET = os.getenv("whsec_MHxLNtkVgtZBBJVEcbNGei2uoktiSQdD")
-
-# Configuración de Telegram
-BOT_TOKEN = os.getenv("7779693447:AAES3qtISilvtOKjQ9oonph918LBQ7odt_I")
-
-# Lista de cuentas de entrega en Fortnite
-FORTNITE_ACCOUNTS = [f"BerlinGonzalez{i}" for i in range(1, 46)]
+stripe.api_key = STRIPE_SECRET_KEY
 
 # Servidor Flask para recibir webhooks de Stripe
 app = Flask(__name__)
+
+FORTNITE_API_URL = "https://fortniteapi.io/v2/shop?lang=es"
+FORTNITE_ACCOUNTS = [f"BerlinGonzalez{i}" for i in range(1, 46)]
 
 def obtener_items_fortnite():
     headers = {"Authorization": FORTNITE_API_KEY}
@@ -47,7 +47,6 @@ def obtener_items_fortnite():
 def stripe_webhook():
     payload = request.get_data(as_text=True)
     sig_header = request.headers.get("Stripe-Signature")
-    
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, WEBHOOK_SECRET)
     except Exception as e:
@@ -57,24 +56,19 @@ def stripe_webhook():
         session = event["data"]["object"]
         user_id = session["metadata"]["user_id"]
         product_name = session["metadata"]["product_name"]
-        
         delivery_account = random.choice(FORTNITE_ACCOUNTS)
-        
         application.bot.send_message(chat_id=user_id, text=f"✅ Pago recibido para {product_name}. \nTu regalo será enviado desde la cuenta: {delivery_account}. \nAsegúrate de haber aceptado la solicitud de amistad en Fortnite.")
     
     return jsonify(success=True)
-
-# Inicializar aplicación de Telegram
-application = Application.builder().token(BOT_TOKEN).build()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     items = obtener_items_fortnite()
     keyboard = []
     
-    for item in items[:10]:  # Mostrar solo los primeros 10 ítems
+    for item in items[:10]:
         nombre = item.get("displayName", "Sin nombre")
         precio = item.get("price", {}).get("finalPrice", "N/A")
-        key = item.get("mainId", "0")  # ID único del ítem
+        key = item.get("mainId", "0")
         keyboard.append([InlineKeyboardButton(f"{nombre} - {precio} V-Bucks", callback_data=key)])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -82,8 +76,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()  # Responde inmediatamente para evitar que Telegram quede cargando
-    item_id = query.data  # ID del ítem seleccionado
+    await query.answer()
+    item_id = query.data
     items = obtener_items_fortnite()
     
     item = next((i for i in items if i.get("mainId") == item_id), None)
@@ -94,7 +88,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     nombre = item.get("displayName", "Sin nombre")
     precio_vbucks = item.get("price", {}).get("finalPrice", 0)
-    precio_usd = precio_vbucks * 0.01  # Convertimos V-Bucks a dólares (ejemplo)
+    precio_usd = precio_vbucks * 0.01
     
     try:
         session = stripe.checkout.Session.create(
