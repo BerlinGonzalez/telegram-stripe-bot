@@ -36,15 +36,15 @@ FORTNITE_ACCOUNTS = [f"BerlinGonzalez{i}" for i in range(1, 46)]
 
 # Obtener ítems de la tienda de Fortnite
 def get_fortnite_items():
-    url = "https://fortniteapi.io/v2/shop?lang=es"
+    url = "https://fortnite-api.com/v2/shop/br"
     headers = {"Authorization": FORTNITE_API_KEY}
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
         data = response.json()
-        items = data.get("shop", [])
+        items = data.get("data", {}).get("featured", [])
         return {
-            item.get('displayName', 'Desconocido'): {
-                'name': item.get('displayName', 'Desconocido'),
+            item.get('name', 'Desconocido'): {
+                'name': item.get('name', 'Desconocido'),
                 'price': item.get('price', {}).get('finalPrice', 'N/A') if item.get('price') else 'N/A'
             }
             for item in items
@@ -133,8 +133,7 @@ async def main():
     application.add_handler(CallbackQueryHandler(button))
     application.add_handler(MessageHandler(None, username_handler))
     
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(application.run_polling())
+    await application.run_polling()
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
