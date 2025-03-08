@@ -1,18 +1,11 @@
-# Código para crear requirements.txt en Railway si no existe
-with open("requirements.txt", "w") as f:
-    f.write("python-telegram-bot\nflask\nstripe\nrequests\n")
-
-import os
-os.system("pip install -r requirements.txt")
-
-
 import os
 import stripe
-import telegram
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 from flask import Flask, request, jsonify
 import random
+import threading
+import requests
 import time
 
 # Configuración de Stripe
@@ -21,12 +14,11 @@ WEBHOOK_SECRET = "whsec_MHxLNtkVgtZBBJVEcbNGei2uoktiSQdD"
 
 # Configuración de Telegram
 BOT_TOKEN = "7779693447:AAES3qtISilvtOKjQ9oonph918LBQ7odt_I"
-bot = telegram.Bot(token=BOT_TOKEN)
 
 # Lista de cuentas de entrega en Fortnite
 FORTNITE_ACCOUNTS = [f"BerlinGonzalez{i}" for i in range(1, 46)]
 
-# Base de datos temporal de productos
+# Base de datos de productos
 PRODUCTS = {
     "skin1": {"name": "Skin Épica", "price": 5.99, "stripe_price_id": "stripe_price_id_1"},
     "emote1": {"name": "Emote Exclusivo", "price": 3.99, "stripe_price_id": "stripe_price_id_2"},
@@ -40,56 +32,57 @@ def stripe_webhook():
     payload = request.get_data(as_text=True)
     sig_header = request.headers.get("Stripe-Signature")
     event = None
-
+    
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, WEBHOOK_SECRET)
     except Exception as e:
         return jsonify(success=False)
-
+    
     if event["type"] == "checkout.session.completed":
         session = event["data"]["object"]
         user_id = session["metadata"]["user_id"]
         product_name = session["metadata"]["product_name"]
         fortnite_username = session["metadata"]["fortnite_username"]
         
-        # Seleccionar una cuenta de entrega aleatoria
         delivery_account = random.choice(FORTNITE_ACCOUNTS)
         
-        # Simulación de entrega automática (esto debe ser manejado por un bot en Fortnite o manualmente)
-        time.sleep(5)  # Simula tiempo de entrega
+        # Simulación de entrega automática
+        time.sleep(5)
         
         # Enviar mensaje de confirmación en Telegram
-        bot.send_message(chat_id=user_id, text=f"✅ Pago recibido para {product_name}. \nTu regalo será enviado desde la cuenta: {delivery_account}. \nAsegúrate de haber aceptado la solicitud de amistad en Fortnite.")
+        application.bot.send_message(chat_id=user_id, text=f"✅ Pago recibido para {product_name}. \nTu regalo será enviado desde la cuenta: {delivery_account}. \nAsegúrate de haber aceptado la solicitud de amistad en Fortnite.")
     
     return jsonify(success=True)
 
-# Función para mostrar productos
-def start(update: Update, context: CallbackContext) -> None:
+# Inicializar aplicación de Telegram
+application = Application.builder().token(BOT_TOKEN).build()
+
+# Manejar comando /start
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton(f"{p['name']} - ${p['price']}", callback_data=k)]
         for k, p in PRODUCTS.items()
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text("Elige un producto:", reply_markup=reply_markup)
+    await update.message.reply_text("Elige un producto:", reply_markup=reply_markup)
 
-# Función para manejar la selección de productos
-def button(update: Update, context: CallbackContext) -> None:
+# Manejar selección de productos
+async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     product_key = query.data
     product = PRODUCTS[product_key]
     
-    query.message.reply_text("Por favor, envíame tu nombre de usuario en Fortnite para continuar.")
+    await query.message.reply_text("Por favor, envíame tu nombre de usuario en Fortnite para continuar.")
     context.user_data["product"] = product
     context.user_data["awaiting_username"] = True
-    query.answer()
+    await query.answer()
 
-# Capturar el nombre de usuario de Fortnite
-def username_handler(update: Update, context: CallbackContext) -> None:
+# Capturar nombre de usuario de Fortnite
+async def username_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if "awaiting_username" in context.user_data and context.user_data["awaiting_username"]:
         fortnite_username = update.message.text
         product = context.user_data["product"]
         
-        # Crear sesión de pago en Stripe
         session = stripe.checkout.Session.create(
             payment_method_types=["card"],
             line_items=[{
@@ -102,28 +95,26 @@ def username_handler(update: Update, context: CallbackContext) -> None:
             metadata={"user_id": update.message.chat_id, "product_name": product["name"], "fortnite_username": fortnite_username},
         )
         
-        update.message.reply_text(f"Compra {product['name']} aquí: {session.url}")
+        await update.message.reply_text(f"Compra {product['name']} aquí: {session.url}")
         context.user_data["awaiting_username"] = False
 
-# Configurar el bot
-def main():
-    from telegram.ext import Application
+# Mantener Railway despierto
+RAILWAY_APP_URL = "https://tu-bot.railway.app"
+def keep_awake():
+    while True:
+        try:
+            requests.get(RAILWAY_APP_URL)
+        except Exception as e:
+            print("Error manteniendo activo:", e)
+        time.sleep(300)
+threading.Thread(target=keep_awake, daemon=True).start()
 
-updater = Application.builder().token(BOT_TOKEN).build()
+# Configurar manejadores de Telegram
+application.add_handler(CommandHandler("start", start))
+application.add_handler(CallbackQueryHandler(button))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, username_handler))
 
-    dp = updater.dispatcher
-    
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CallbackQueryHandler(button))
-    dp.add_handler(telegram.ext.MessageHandler(telegram.ext.Filters.text & ~telegram.ext.Filters.command, username_handler))
-    
-    updater.start_polling()
-    updater.idle()
-
+# Ejecutar bot
 if __name__ == "__main__":
-    main()
-
-import time
-
-while True:
-    time.sleep(10)  # Evita que el proceso se cierre inmediatamente
+    print("Bot iniciado...")
+    application.run_polling()
