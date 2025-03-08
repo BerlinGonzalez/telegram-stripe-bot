@@ -21,6 +21,16 @@ if not BOT_TOKEN:
     raise ValueError("🚨 ERROR: BOT_TOKEN sigue sin configurarse en Railway.")
 else:
     print(f"✅ BOT_TOKEN Detectado en código: {BOT_TOKEN[:10]}********")
+    
+import os
+
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
+
+if not STRIPE_SECRET_KEY:
+    print("🚨 ERROR: `STRIPE_SECRET_KEY` no se detecta en el código. Verifica en Railway.")
+    raise ValueError("🚨 ERROR: `STRIPE_SECRET_KEY` sigue sin configurarse en Railway.")
+else:
+    print(f"✅ STRIPE_SECRET_KEY detectado correctamente: {STRIPE_SECRET_KEY[:10]}********")
 
 STRIPE_SECRET_KEY = os.getenv("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", "").strip()
 WEBHOOK_SECRET = os.getenv("whsec_MHxLNtkVgtZBBJVEcbNGei2uoktiSQdD", "").strip()
