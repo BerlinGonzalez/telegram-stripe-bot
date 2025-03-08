@@ -1,8 +1,8 @@
 import os
 import stripe
 import telegram
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, MessageEntity
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 from flask import Flask, request, jsonify
 import random
 import time
@@ -47,13 +47,13 @@ def get_fortnite_items():
             category = item.get("category", "Otros")
             if category not in categorized_items:
                 categorized_items[category] = []
-
-            # Validar y acortar el callback_data
-            callback_id = item.get('id', 'unknown_id')[:50]  # Limita a 50 caracteres
-            button_text = f"{item.get('displayName', 'Desconocido')} - {item.get('price', 'N/A')} V-Bucks"
-
-            # Agregar botón correctamente formateado
-            categorized_items[category].append(InlineKeyboardButton(button_text, callback_data=callback_id))
+            if len(categorized_items[category]) < 10:  # Limitar elementos por categoría
+                categorized_items[category].append(
+                    InlineKeyboardButton(
+                        f"{item.get('displayName', 'Desconocido')} - {item.get('price', 'N/A')} V-Bucks",
+                        callback_data=item.get('id')
+                    )
+                )
         return categorized_items
     return {}
 
@@ -77,7 +77,7 @@ def stripe_webhook():
         session = event["data"]["object"]
         user_id = session["metadata"]["user_id"]
         product_name = session["metadata"]["product_name"]
-        fortnite_username = session["metadata"]["fortnite_username"]
+        fortnite_username = session["metadata"].get("fortnite_username", "Desconocido")
         
         delivery_account = random.choice(FORTNITE_ACCOUNTS)
         time.sleep(5)  # Simula tiempo de entrega
@@ -96,6 +96,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         keyboard = [items[i:i+2] for i in range(0, len(items), 2)]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text(f"{category}:", reply_markup=reply_markup)
+        await asyncio.sleep(1)  # Evita límite de mensajes por segundo
 
 # Función para manejar botones de callback
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
