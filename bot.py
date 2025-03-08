@@ -43,8 +43,8 @@ def get_fortnite_items():
         data = response.json()
         items = data.get("data", {}).get("featured", []) + data.get("data", {}).get("daily", [])
         return {
-            item.get('displayName', 'Desconocido'): {
-                'name': item.get('displayName', 'Desconocido'),
+            item.get('name', 'Desconocido'): {
+                'name': item.get('name', 'Desconocido'),
                 'price': item.get('price', 'N/A')
             }
             for item in items
@@ -60,7 +60,8 @@ app = Flask(__name__)
 def stripe_webhook():
     payload = request.get_data(as_text=True)
     sig_header = request.headers.get("Stripe-Signature")
-    
+    event = None
+
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, WEBHOOK_SECRET)
     except Exception as e:
@@ -75,7 +76,7 @@ def stripe_webhook():
         delivery_account = random.choice(FORTNITE_ACCOUNTS)
         time.sleep(5)  # Simula tiempo de entrega
         
-        bot.send_message(chat_id=user_id, text=f"✅ Pago recibido para {product_name}. \nTu regalo será enviado desde la cuenta: {delivery_account}. \nAsegúrate de haber aceptado la solicitud de amistad en Fortnite.")
+        asyncio.run(bot.send_message(chat_id=user_id, text=f"✅ Pago recibido para {product_name}. \nTu regalo será enviado desde la cuenta: {delivery_account}. \nAsegúrate de haber aceptado la solicitud de amistad en Fortnite."))
     
     return jsonify(success=True)
 
@@ -125,15 +126,14 @@ async def username_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         context.user_data["awaiting_username"] = False
 
 # Configurar el bot
-async def main():
+def main():
     application = Application.builder().token(BOT_TOKEN).build()
     
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(button))
     application.add_handler(MessageHandler(None, username_handler))
     
-    print("Bot iniciado correctamente.")
-    await application.run_polling()
+    application.run_polling()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
