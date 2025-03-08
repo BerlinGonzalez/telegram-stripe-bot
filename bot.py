@@ -9,7 +9,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
 # Cargar las variables de entorno
-BOT_TOKEN = os.getenv("7779693447:AAES3qtISilvtOKjQ9oonph918LBQ7odt_I", "").strip()
+BOT_TOKEN = os.getenv("7779693447:AAEKUGelpdl0scXVl_qm0MX2Or2doHGMpcQ", "").strip()
 STRIPE_SECRET_KEY = os.getenv("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", "").strip()
 WEBHOOK_SECRET = os.getenv("whsec_MHxLNtkVgtZBBJVEcbNGei2uoktiSQdD", "").strip()
 FORTNITE_API_KEY = os.getenv("281c13c9-171d1d7d-f0407eee-5aad11aa", "").strip()
