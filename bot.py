@@ -1,4 +1,4 @@
-import os
+281c13c9-171d1d7d-f0407eee-5aad11aaimport os
 import stripe
 import requests
 import random
@@ -61,9 +61,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = []
     
     for item in items[:10]:  # Mostrar solo los primeros 10 ítems
-        nombre = item["displayName"]
-        precio = item["price"]
-        key = item["mainId"]  # ID único del ítem
+        nombre = item.get("displayName", "Sin nombre")
+        precio = item.get("finalPrice", "N/A")
+        key = item.get("mainId", "0")  # ID único del ítem
         keyboard.append([InlineKeyboardButton(f"{nombre} - {precio} V-Bucks", callback_data=key)])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -74,14 +74,14 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     item_id = query.data  # ID del ítem seleccionado
     items = obtener_items_fortnite()
     
-    item = next((i for i in items if i["mainId"] == item_id), None)
+    item = next((i for i in items if i.get("mainId") == item_id), None)
     
     if not item:
         await query.message.reply_text("Este ítem ya no está disponible.")
         return
     
-    nombre = item["displayName"]
-    precio = item["price"] * 0.01  # Convertimos V-Bucks a dólares (ejemplo)
+    nombre = item.get("displayName", "Sin nombre")
+    precio = item.get("finalPrice", 0) * 0.01  # Convertimos V-Bucks a dólares (ejemplo)
     
     session = stripe.checkout.Session.create(
         payment_method_types=["card"],
