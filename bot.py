@@ -41,7 +41,9 @@ def get_fortnite_items():
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
         data = response.json()
-        items = data.get("items", [])  # Ajuste para la estructura correcta
+        print("DEBUG: Datos recibidos de la API:", data)  # Debugging
+        items = data.get("shop", {}).get("daily", []) + data.get("shop", {}).get("featured", [])
+        print("DEBUG: Items extraídos:", items)  # Debugging
         return {
             item.get('displayName', 'Desconocido'): {
                 'name': item.get('displayName', 'Desconocido'),
@@ -52,6 +54,7 @@ def get_fortnite_items():
     return {}
 
 PRODUCTS = get_fortnite_items()
+print("DEBUG: Productos cargados:", PRODUCTS)  # Debugging
 
 # Obtener información de Fortnite Crew
 def get_fortnite_crew():
@@ -91,10 +94,15 @@ def stripe_webhook():
 
 # Función para mostrar productos
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not PRODUCTS:
+        await update.message.reply_text("No hay productos disponibles en la tienda en este momento.")
+        return
+    
     keyboard = [
         [InlineKeyboardButton(f"{item['name']} - {item['price']} V-Bucks", callback_data=name)]
         for name, item in PRODUCTS.items()
     ]
+    print("DEBUG: Teclado de productos generado:", keyboard)  # Debugging
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("Elige un producto de la tienda Fortnite:", reply_markup=reply_markup)
 
