@@ -8,6 +8,7 @@ import random
 import time
 import requests
 import json
+import asyncio
 
 # Cargar variables de entorno
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -33,18 +34,18 @@ bot = telegram.Bot(token=BOT_TOKEN)
 # Lista de cuentas de entrega en Fortnite
 FORTNITE_ACCOUNTS = [f"BerlinGonzalez{i}" for i in range(1, 46)]
 
-# Obtener ítems de la tienda de Fortnite desde la nueva API
+# Obtener ítems de la tienda de Fortnite
 def get_fortnite_items():
-    url = "https://fortnite-api.com/v2/shop/br"
+    url = "https://fortniteapi.io/v2/shop?lang=es"
     headers = {"Authorization": FORTNITE_API_KEY}
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
         data = response.json()
-        items = data.get("data", {}).get("featured", {}).get("entries", [])
+        items = data.get("shop", [])
         return {
-            item.get('items', [{}])[0].get('name', 'Desconocido'): {
-                'name': item.get('items', [{}])[0].get('name', 'Desconocido'),
-                'price': item.get('finalPrice', 'N/A')
+            item.get('displayName', 'Desconocido'): {
+                'name': item.get('displayName', 'Desconocido'),
+                'price': item.get('price', {}).get('finalPrice', 'N/A') if item.get('price') else 'N/A'
             }
             for item in items
         }
@@ -132,8 +133,8 @@ async def main():
     application.add_handler(CallbackQueryHandler(button))
     application.add_handler(MessageHandler(None, username_handler))
     
-    await application.run_polling()
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(application.run_polling())
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    main()
