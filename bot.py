@@ -8,8 +8,20 @@ from flask import Flask, request, jsonify
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
+import os
+print("🔍 Variables de entorno cargadas en Railway:", os.environ)
+
 # Cargar las variables de entorno
-BOT_TOKEN = os.getenv("7779693447:AAEKUGelpdl0scXVl_qm0MX2Or2doHGMpcQ", "").strip()
+import os
+
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+
+if not BOT_TOKEN:
+    print("🚨 ERROR: Railway no está pasando el BOT_TOKEN al código.")
+    raise ValueError("🚨 ERROR: BOT_TOKEN sigue sin configurarse en Railway.")
+else:
+    print(f"✅ BOT_TOKEN Detectado en código: {BOT_TOKEN[:10]}********")
+
 STRIPE_SECRET_KEY = os.getenv("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", "").strip()
 WEBHOOK_SECRET = os.getenv("whsec_MHxLNtkVgtZBBJVEcbNGei2uoktiSQdD", "").strip()
 FORTNITE_API_KEY = os.getenv("281c13c9-171d1d7d-f0407eee-5aad11aa", "").strip()
