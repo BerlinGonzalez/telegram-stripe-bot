@@ -36,16 +36,16 @@ FORTNITE_ACCOUNTS = [f"BerlinGonzalez{i}" for i in range(1, 46)]
 
 # Obtener ítems de la tienda de Fortnite
 def get_fortnite_items():
-    url = "https://fortnite-api.com/v2/shop/br?language=es"
+    url = "https://fortnite-api.com/v2/shop/br"
     headers = {"Authorization": FORTNITE_API_KEY}
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
         data = response.json()
-        items = data.get("data", {}).get("featured", {}).get("entries", [])
+        items = data.get("data", {}).get("featured", []) + data.get("data", {}).get("daily", [])
         return {
-            item.get('name', 'Desconocido'): {
-                'name': item.get('name', 'Desconocido'),
-                'price': item.get('finalPrice', 'N/A') if 'finalPrice' in item else 'N/A'
+            item.get('displayName', 'Desconocido'): {
+                'name': item.get('displayName', 'Desconocido'),
+                'price': item.get('price', 'N/A')
             }
             for item in items
         }
@@ -60,8 +60,7 @@ app = Flask(__name__)
 def stripe_webhook():
     payload = request.get_data(as_text=True)
     sig_header = request.headers.get("Stripe-Signature")
-    event = None
-
+    
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, WEBHOOK_SECRET)
     except Exception as e:
@@ -133,6 +132,7 @@ async def main():
     application.add_handler(CallbackQueryHandler(button))
     application.add_handler(MessageHandler(None, username_handler))
     
+    print("Bot iniciado correctamente.")
     await application.run_polling()
 
 if __name__ == "__main__":
