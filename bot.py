@@ -34,23 +34,24 @@ bot = telegram.Bot(token=BOT_TOKEN)
 # Lista de cuentas de entrega en Fortnite
 FORTNITE_ACCOUNTS = [f"BerlinGonzalez{i}" for i in range(1, 46)]
 
-# Obtener ítems de la tienda de Fortnite y categorizarlos
+# Obtener ítems de la tienda de Fortnite
+
 def get_fortnite_items():
     url = "https://fortniteapi.io/v2/shop?lang=es"
     headers = {"Authorization": FORTNITE_API_KEY}
     response = requests.get(url, headers=headers)
+    
     if response.status_code == 200:
         data = response.json()
-        items = data.get("shop", [])
         categorized_items = {}
         
-        for item in items:
-            category = item.get("section", "Otros")
+        for item in data.get("shop", []):
+            category = item.get("section", "Sin categoría")
             if category not in categorized_items:
                 categorized_items[category] = []
             categorized_items[category].append({
                 'name': item.get('displayName', 'Desconocido'),
-                'price': item.get('finalPrice', 'N/A')
+                'price': item.get('price', 'N/A')
             })
         return categorized_items
     return {}
@@ -84,43 +85,29 @@ def stripe_webhook():
     
     return jsonify(success=True)
 
-# Función para mostrar categorías de productos
+# Función para mostrar productos categorizados
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not PRODUCTS:
         await update.message.reply_text("No hay productos disponibles en la tienda en este momento.")
         return
     
-    keyboard = [[InlineKeyboardButton(category, callback_data=f"category_{category}")]
-                for category in PRODUCTS.keys()]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("Elige una categoría de productos de la tienda Fortnite:", reply_markup=reply_markup)
+    for category, items in PRODUCTS.items():
+        keyboard = [[InlineKeyboardButton(f"{item['name']} - {item['price']} V-Bucks", callback_data=item['name'])] for item in items]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text(f"{category}:", reply_markup=reply_markup)
 
-# Función para manejar selección de categoría
-async def category_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+# Función para manejar botones de callback
+async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
-    category = query.data.replace("category_", "")
-    items = PRODUCTS.get(category, [])
-    
-    keyboard = [[InlineKeyboardButton(f"{item['name']} - {item['price']} V-Bucks", callback_data=f"item_{item['name']}")]
-                for item in items]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await query.message.reply_text(f"Elige un producto de la categoría {category}:", reply_markup=reply_markup)
-
-# Función para manejar selección de producto
-async def item_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.callback_query
-    await query.answer()
-    item_name = query.data.replace("item_", "")
-    await query.message.reply_text(f"Seleccionaste: {item_name}. Pronto añadiremos la opción de compra.")
+    await query.message.reply_text(f"Seleccionaste: {query.data}")
 
 # Configurar el bot
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
     
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(category_selection, pattern="^category_"))
-    application.add_handler(CallbackQueryHandler(item_selection, pattern="^item_"))
+    application.add_handler(CallbackQueryHandler(button))
     
     application.run_polling()
 
