@@ -1,8 +1,8 @@
 import os
 import stripe
 import telegram
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, MessageEntity
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 from flask import Flask, request, jsonify
 import random
 import time
@@ -42,20 +42,16 @@ def get_fortnite_items():
     if response.status_code == 200:
         data = response.json()
         print("DEBUG: Datos recibidos de la API:", data)  # Debugging
-        shop_items = data.get("shop", [])
-        
-        items = []
-        for category in shop_items:
-            items.extend(category.get("entries", []))
-        
-        print("DEBUG: Items extraídos:", items)  # Debugging
-        return {
-            item.get('displayName', 'Desconocido'): {
-                'name': item.get('displayName', 'Desconocido'),
-                'price': item.get('finalPrice', 'N/A')
+        if isinstance(data, dict) and "shop" in data:
+            items = data["shop"]
+            print("DEBUG: Items extraídos:", items)  # Debugging
+            return {
+                item.get('displayName', 'Desconocido'): {
+                    'name': item.get('displayName', 'Desconocido'),
+                    'price': item.get('price', 'N/A')
+                }
+                for item in items
             }
-            for item in items
-        }
     return {}
 
 PRODUCTS = get_fortnite_items()
