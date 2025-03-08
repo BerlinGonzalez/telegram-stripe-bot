@@ -1,14 +1,18 @@
 import os
 import stripe
 import telegram
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, MessageEntity
+import logging
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes
 from flask import Flask, request, jsonify
 import random
 import time
 import requests
 import json
-import asyncio
+
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Cargar variables de entorno
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -39,17 +43,28 @@ def get_fortnite_items():
     url = "https://fortnite-api.com/v2/shop/br"
     headers = {"Authorization": FORTNITE_API_KEY}
     response = requests.get(url, headers=headers)
+    
+    logger.info("Conectando con la API de Fortnite...")
     if response.status_code == 200:
         data = response.json()
-        items = data.get("data", {}).get("featured", []) + data.get("data", {}).get("daily", [])
+        logger.info("Respuesta de la API recibida correctamente.")
+        logger.debug(json.dumps(data, indent=2))  # Registrar JSON completo
+        items = data.get("data", {}).get("featured", [])  # Ajustar según estructura de la API
+        
+        if not items:
+            logger.warning("⚠️ La API de Fortnite no devolvió productos en la tienda.")
+            return {}
+        
         return {
-            item.get('name', 'Desconocido'): {
-                'name': item.get('name', 'Desconocido'),
-                'price': item.get('price', 'N/A')
+            item.get('displayName', 'Desconocido'): {
+                'name': item.get('displayName', 'Desconocido'),
+                'price': item.get('price', {}).get('finalPrice', 'N/A') if item.get('price') else 'N/A'
             }
             for item in items
         }
-    return {}
+    else:
+        logger.error(f"❌ Error al obtener datos de Fortnite API: {response.status_code} - {response.text}")
+        return {}
 
 PRODUCTS = get_fortnite_items()
 
@@ -76,16 +91,25 @@ def stripe_webhook():
         delivery_account = random.choice(FORTNITE_ACCOUNTS)
         time.sleep(5)  # Simula tiempo de entrega
         
-        asyncio.run(bot.send_message(chat_id=user_id, text=f"✅ Pago recibido para {product_name}. \nTu regalo será enviado desde la cuenta: {delivery_account}. \nAsegúrate de haber aceptado la solicitud de amistad en Fortnite."))
+        bot.send_message(chat_id=user_id, text=f"✅ Pago recibido para {product_name}. \nTu regalo será enviado desde la cuenta: {delivery_account}. \nAsegúrate de haber aceptado la solicitud de amistad en Fortnite.")
     
     return jsonify(success=True)
 
 # Función para mostrar productos
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not PRODUCTS:
+        await update.message.reply_text("⚠️ No hay productos disponibles en la tienda de Fortnite. Intenta más tarde.")
+        return
+    
     keyboard = [
         [InlineKeyboardButton(f"{item['name']} - {item['price']} V-Bucks", callback_data=name)]
         for name, item in PRODUCTS.items()
     ]
+    
+    if not keyboard:
+        await update.message.reply_text("⚠️ Error al generar la lista de productos. Intenta más tarde.")
+        return
+    
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("Elige un producto de la tienda Fortnite:", reply_markup=reply_markup)
 
@@ -94,6 +118,10 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     product_name = query.data
     product = PRODUCTS.get(product_name)
+    
+    if not product:
+        await query.message.reply_text("⚠️ Este producto ya no está disponible.")
+        return
     
     await query.message.reply_text("Por favor, envíame tu nombre de usuario en Fortnite para continuar.")
     context.user_data["product"] = product
@@ -126,14 +154,13 @@ async def username_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         context.user_data["awaiting_username"] = False
 
 # Configurar el bot
-def main():
+async def main():
     application = Application.builder().token(BOT_TOKEN).build()
-    
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(button))
     application.add_handler(MessageHandler(None, username_handler))
-    
-    application.run_polling()
+    await application.run_polling()
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+    asyncio.run(main())
