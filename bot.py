@@ -1,8 +1,8 @@
 import os
 import stripe
 import telegram
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, MessageEntity
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 from flask import Flask, request, jsonify
 import random
 import time
@@ -34,36 +34,28 @@ bot = telegram.Bot(token=BOT_TOKEN)
 # Lista de cuentas de entrega en Fortnite
 FORTNITE_ACCOUNTS = [f"BerlinGonzalez{i}" for i in range(1, 46)]
 
-# Obtener ítems de la tienda de Fortnite
+# Obtener ítems de la tienda de Fortnite y categorizarlos
 def get_fortnite_items():
     url = "https://fortniteapi.io/v2/shop?lang=es"
     headers = {"Authorization": FORTNITE_API_KEY}
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
         data = response.json()
-        print("DEBUG: Datos recibidos de la API:", data)  # Debugging
         items = data.get("shop", [])
-        print("DEBUG: Items extraídos:", items)  # Debugging
-        return {
-            item.get('displayName', 'Desconocido'): {
+        categorized_items = {}
+        
+        for item in items:
+            category = item.get("section", "Otros")
+            if category not in categorized_items:
+                categorized_items[category] = []
+            categorized_items[category].append({
                 'name': item.get('displayName', 'Desconocido'),
-                'price': item.get('price', 'N/A')
-            }
-            for item in items
-        }
+                'price': item.get('finalPrice', 'N/A')
+            })
+        return categorized_items
     return {}
 
 PRODUCTS = get_fortnite_items()
-print("DEBUG: Productos cargados:", PRODUCTS)  # Debugging
-
-# Obtener información de Fortnite Crew
-def get_fortnite_crew():
-    url = "https://fortniteapi.io/v2/crew?lang=es"
-    headers = {"Authorization": FORTNITE_API_KEY}
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        return response.json()
-    return {}
 
 # Servidor Flask para recibir webhooks de Stripe
 app = Flask(__name__)
@@ -92,52 +84,43 @@ def stripe_webhook():
     
     return jsonify(success=True)
 
-# Función para mostrar productos
-def chunk_list(lst, n):
-    """Divide una lista en partes de tamaño n."""
-    for i in range(0, len(lst), n):
-        yield lst[i:i + n]
-
+# Función para mostrar categorías de productos
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not PRODUCTS:
         await update.message.reply_text("No hay productos disponibles en la tienda en este momento.")
         return
     
-    product_buttons = [
-        InlineKeyboardButton(f"{item['name']} - {item['price']} V-Bucks", callback_data=name)
-        for name, item in PRODUCTS.items()
-    ]
-    
-    # Dividimos los botones en partes más pequeñas
-    button_chunks = list(chunk_list(product_buttons, 5))  # Máximo 5 por fila
-    
-    for chunk in button_chunks:
-        reply_markup = InlineKeyboardMarkup([chunk])
-        await update.message.reply_text("Elige un producto de la tienda Fortnite:", reply_markup=reply_markup)
+    keyboard = [[InlineKeyboardButton(category, callback_data=f"category_{category}")]
+                for category in PRODUCTS.keys()]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("Elige una categoría de productos de la tienda Fortnite:", reply_markup=reply_markup)
 
-# Función para manejar botones de callback
-async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+# Función para manejar selección de categoría
+async def category_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
-    await query.message.reply_text(f"Seleccionaste: {query.data}")
+    category = query.data.replace("category_", "")
+    items = PRODUCTS.get(category, [])
+    
+    keyboard = [[InlineKeyboardButton(f"{item['name']} - {item['price']} V-Bucks", callback_data=f"item_{item['name']}")]
+                for item in items]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.message.reply_text(f"Elige un producto de la categoría {category}:", reply_markup=reply_markup)
 
-# Función para mostrar Fortnite Crew
-async def fortnite_crew(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    crew_info = get_fortnite_crew()
-    if crew_info:
-        crew_data = crew_info.get('crew', {})
-        message = f"🎮 Fortnite Crew:\n{crew_data.get('title', 'No disponible')}\n\n💰 Precio: {crew_data.get('price', 'No disponible')}\n🎁 Recompensas: {crew_data.get('description', 'No disponible')}"
-        await update.message.reply_text(message)
-    else:
-        await update.message.reply_text("No se pudo obtener información sobre Fortnite Crew en este momento.")
+# Función para manejar selección de producto
+async def item_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    item_name = query.data.replace("item_", "")
+    await query.message.reply_text(f"Seleccionaste: {item_name}. Pronto añadiremos la opción de compra.")
 
 # Configurar el bot
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
     
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("crew", fortnite_crew))
-    application.add_handler(CallbackQueryHandler(button))
+    application.add_handler(CallbackQueryHandler(category_selection, pattern="^category_"))
+    application.add_handler(CallbackQueryHandler(item_selection, pattern="^item_"))
     
     application.run_polling()
 
