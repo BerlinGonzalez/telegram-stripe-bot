@@ -44,7 +44,7 @@ def get_fortnite_items():
         return {
             item.get('displayName', 'Desconocido'): {
                 'name': item.get('displayName', 'Desconocido'),
-                'price': item.get('price', {}).get('finalPrice', 'N/A')
+                'price': item.get('price', {}).get('finalPrice', 'N/A') if item.get('price') else 'N/A'
             }
             for item in items
         }
@@ -111,7 +111,7 @@ async def username_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                 "price_data": {
                     "currency": "usd",
                     "product_data": {"name": product["name"]},
-                    "unit_amount": int(product["price"]) * 100,
+                    "unit_amount": int(product["price"]) * 100 if product["price"] != 'N/A' else 1000,
                 },
                 "quantity": 1,
             }],
