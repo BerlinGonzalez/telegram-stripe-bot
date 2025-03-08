@@ -8,6 +8,7 @@ import random
 import time
 import requests
 import json
+import asyncio
 
 # Cargar variables de entorno
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -114,15 +115,14 @@ async def fortnite_crew(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         await update.message.reply_text("No se pudo obtener información sobre Fortnite Crew en este momento.")
 
 # Configurar el bot
-async def main():
+def main():
     application = Application.builder().token(BOT_TOKEN).build()
     
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("crew", fortnite_crew))
     application.add_handler(CallbackQueryHandler(button))
     
-    await application.run_polling()
+    application.run_polling()
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    main()
