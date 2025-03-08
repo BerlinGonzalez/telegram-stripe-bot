@@ -9,7 +9,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
 # Configuración de API
-FORTNITE_API_KEY = os.getenv("281c13c9-171d1d7d-f0407eee-5aad11aa")
+FORTNITE_API_KEY = os.getenv("FORTNITE_API_KEY")
 FORTNITE_API_URL = "https://fortniteapi.io/v2/shop?lang=es"
 
 # Configuración de Stripe
