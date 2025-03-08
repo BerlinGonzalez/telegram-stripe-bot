@@ -1,8 +1,8 @@
 import os
 import stripe
 import telegram
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, MessageEntity
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes
 from flask import Flask, request, jsonify
 import random
 import time
@@ -45,17 +45,15 @@ def get_fortnite_items():
         categorized_items = {}
         for item in items:
             category = item.get("category", "Otros")
-            item_name = item.get("displayName", "Desconocido")
-            item_price = item.get("price", "N/A")
-            item_id = item.get("id", "unknown")
-            
             if category not in categorized_items:
                 categorized_items[category] = []
-            
-            if item_id != "unknown":
-                categorized_items[category].append(
-                    InlineKeyboardButton(f"{item_name} - {item_price} V-Bucks", callback_data=item_id)
-                )
+
+            # Validar y acortar el callback_data
+            callback_id = item.get('id', 'unknown_id')[:50]  # Limita a 50 caracteres
+            button_text = f"{item.get('displayName', 'Desconocido')} - {item.get('price', 'N/A')} V-Bucks"
+
+            # Agregar botón correctamente formateado
+            categorized_items[category].append(InlineKeyboardButton(button_text, callback_data=callback_id))
         return categorized_items
     return {}
 
@@ -95,10 +93,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
     
     for category, items in PRODUCTS.items():
-        if items:  # Verificar si hay productos en la categoría
-            keyboard = [[button] for button in items]  # Formato correcto para inline keyboard
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            await update.message.reply_text(f"{category}:", reply_markup=reply_markup)
+        keyboard = [items[i:i+2] for i in range(0, len(items), 2)]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text(f"{category}:", reply_markup=reply_markup)
 
 # Función para manejar botones de callback
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
