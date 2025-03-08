@@ -62,7 +62,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     for item in items[:10]:  # Mostrar solo los primeros 10 ítems
         nombre = item.get("displayName", "Sin nombre")
-        precio = item.get("finalPrice", "N/A")
+        precio = item.get("price", {}).get("finalPrice", "N/A")
         key = item.get("mainId", "0")  # ID único del ítem
         keyboard.append([InlineKeyboardButton(f"{nombre} - {precio} V-Bucks", callback_data=key)])
     
@@ -81,7 +81,8 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     nombre = item.get("displayName", "Sin nombre")
-    precio = item.get("finalPrice", 0) * 0.01  # Convertimos V-Bucks a dólares (ejemplo)
+    precio_vbucks = item.get("price", {}).get("finalPrice", 0)
+    precio_usd = precio_vbucks * 0.01  # Convertimos V-Bucks a dólares (ejemplo)
     
     session = stripe.checkout.Session.create(
         payment_method_types=["card"],
@@ -89,7 +90,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "price_data": {
                 "currency": "usd",
                 "product_data": {"name": nombre},
-                "unit_amount": int(precio * 100),
+                "unit_amount": int(precio_usd * 100),
             },
             "quantity": 1,
         }],
