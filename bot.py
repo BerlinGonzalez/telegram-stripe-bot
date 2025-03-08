@@ -107,7 +107,10 @@ def username_handler(update: Update, context: CallbackContext) -> None:
 
 # Configurar el bot
 def main():
-    updater = Updater(BOT_TOKEN, use_context=True)
+    from telegram.ext import Application
+
+updater = Application.builder().token(BOT_TOKEN).build()
+
     dp = updater.dispatcher
     
     dp.add_handler(CommandHandler("start", start))
