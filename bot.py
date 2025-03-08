@@ -1,4 +1,12 @@
 import os
+
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+
+if not BOT_TOKEN:
+    raise ValueError("🚨 ERROR: BOT_TOKEN is missing! Check your environment variables.")
+
+print(f"🔹 BOT_TOKEN Loaded: {BOT_TOKEN[:5]}********")  # Prints only the first 5 characters for security
+
 import stripe
 import requests
 import random
@@ -9,7 +17,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
 # Configuración de API
-FORTNITE_API_KEY = os.getenv("FORTNITE_API_KEY")
+FORTNITE_API_KEY = os.getenv("281c13c9-171d1d7d-f0407eee-5aad11aa")
 FORTNITE_API_URL = "https://fortniteapi.io/v2/shop?lang=es"
 
 # Configuración de Stripe
