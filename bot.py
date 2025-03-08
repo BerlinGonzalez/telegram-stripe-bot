@@ -133,8 +133,7 @@ async def main():
     application.add_handler(CallbackQueryHandler(button))
     application.add_handler(MessageHandler(None, username_handler))
     
-    print("Bot iniciado correctamente.")
     await application.run_polling()
 
 if __name__ == "__main__":
-    asyncio.get_event_loop().run_until_complete(main())
+    asyncio.run(main(), debug=True)
