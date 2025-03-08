@@ -40,7 +40,7 @@ def get_fortnite_items():
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
         data = response.json()
-        items = data.get("shop", [])  # Ajuste para la estructura correcta
+        items = data.get("items", [])  # Ajuste para la estructura correcta
         return {
             item.get('displayName', 'Desconocido'): {
                 'name': item.get('displayName', 'Desconocido'),
@@ -97,6 +97,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("Elige un producto de la tienda Fortnite:", reply_markup=reply_markup)
 
+# Función para manejar botones de callback
+async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    await query.message.reply_text(f"Seleccionaste: {query.data}")
+
 # Función para mostrar Fortnite Crew
 async def fortnite_crew(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     crew_info = get_fortnite_crew()
@@ -114,7 +120,6 @@ async def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("crew", fortnite_crew))
     application.add_handler(CallbackQueryHandler(button))
-    application.add_handler(MessageHandler(None, username_handler))
     
     await application.run_polling()
 
