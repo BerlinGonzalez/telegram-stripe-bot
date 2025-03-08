@@ -41,7 +41,7 @@ def get_fortnite_items():
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
         data = response.json()
-        items = data.get("data", {}).get("featured", [])
+        items = data.get("data", {}).get("featured", []) + data.get("data", {}).get("daily", [])
         return {
             item.get('name', 'Desconocido'): {
                 'name': item.get('name', 'Desconocido'),
