@@ -1,8 +1,8 @@
 import os
 import stripe
 import telegram
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, MessageEntity
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes
 from flask import Flask, request, jsonify
 import random
 import time
@@ -42,16 +42,15 @@ def get_fortnite_items():
     if response.status_code == 200:
         data = response.json()
         print("DEBUG: Datos recibidos de la API:", data)  # Debugging
-        if isinstance(data, dict) and "shop" in data:
-            items = data["shop"]
-            print("DEBUG: Items extraídos:", items)  # Debugging
-            return {
-                item.get('displayName', 'Desconocido'): {
-                    'name': item.get('displayName', 'Desconocido'),
-                    'price': item.get('price', 'N/A')
-                }
-                for item in items
+        items = data.get("shop", [])
+        print("DEBUG: Items extraídos:", items)  # Debugging
+        return {
+            item.get('displayName', 'Desconocido'): {
+                'name': item.get('displayName', 'Desconocido'),
+                'price': item.get('price', 'N/A')
             }
+            for item in items
+        }
     return {}
 
 PRODUCTS = get_fortnite_items()
@@ -94,18 +93,27 @@ def stripe_webhook():
     return jsonify(success=True)
 
 # Función para mostrar productos
+def chunk_list(lst, n):
+    """Divide una lista en partes de tamaño n."""
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not PRODUCTS:
         await update.message.reply_text("No hay productos disponibles en la tienda en este momento.")
         return
     
-    keyboard = [
-        [InlineKeyboardButton(f"{item['name']} - {item['price']} V-Bucks", callback_data=name)]
+    product_buttons = [
+        InlineKeyboardButton(f"{item['name']} - {item['price']} V-Bucks", callback_data=name)
         for name, item in PRODUCTS.items()
     ]
-    print("DEBUG: Teclado de productos generado:", keyboard)  # Debugging
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("Elige un producto de la tienda Fortnite:", reply_markup=reply_markup)
+    
+    # Dividimos los botones en partes más pequeñas
+    button_chunks = list(chunk_list(product_buttons, 5))  # Máximo 5 por fila
+    
+    for chunk in button_chunks:
+        reply_markup = InlineKeyboardMarkup([chunk])
+        await update.message.reply_text("Elige un producto de la tienda Fortnite:", reply_markup=reply_markup)
 
 # Función para manejar botones de callback
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
