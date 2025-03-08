@@ -1,8 +1,8 @@
 import os
 import stripe
 import telegram
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, MessageEntity
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes
 from flask import Flask, request, jsonify
 import random
 import time
@@ -34,19 +34,16 @@ bot = telegram.Bot(token=BOT_TOKEN)
 # Lista de cuentas de entrega en Fortnite
 FORTNITE_ACCOUNTS = [f"BerlinGonzalez{i}" for i in range(1, 46)]
 
-# Obtener ítems de la tienda de Fortnite
-
+# Obtener ítems de la tienda de Fortnite con categorización
 def get_fortnite_items():
     url = "https://fortniteapi.io/v2/shop?lang=es"
     headers = {"Authorization": FORTNITE_API_KEY}
     response = requests.get(url, headers=headers)
-    
     if response.status_code == 200:
         data = response.json()
         categorized_items = {}
-        
         for item in data.get("shop", []):
-            category = item.get("section", "Sin categoría")
+            category = item.get("section", "Otros")
             if category not in categorized_items:
                 categorized_items[category] = []
             categorized_items[category].append({
@@ -57,6 +54,7 @@ def get_fortnite_items():
     return {}
 
 PRODUCTS = get_fortnite_items()
+print("DEBUG: Productos categorizados cargados:", PRODUCTS)  # Debugging
 
 # Servidor Flask para recibir webhooks de Stripe
 app = Flask(__name__)
@@ -85,29 +83,39 @@ def stripe_webhook():
     
     return jsonify(success=True)
 
-# Función para mostrar productos categorizados
+# Función para mostrar categorías de productos
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not PRODUCTS:
         await update.message.reply_text("No hay productos disponibles en la tienda en este momento.")
         return
     
-    for category, items in PRODUCTS.items():
-        keyboard = [[InlineKeyboardButton(f"{item['name']} - {item['price']} V-Bucks", callback_data=item['name'])] for item in items]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text(f"{category}:", reply_markup=reply_markup)
+    keyboard = [
+        [InlineKeyboardButton(category, callback_data=category)]
+        for category in PRODUCTS.keys()
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("Elige una categoría de productos:", reply_markup=reply_markup)
 
-# Función para manejar botones de callback
-async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+# Función para manejar selección de categoría
+async def category_selected(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
-    await query.message.reply_text(f"Seleccionaste: {query.data}")
+    category = query.data
+    items = PRODUCTS.get(category, [])
+    
+    keyboard = [
+        [InlineKeyboardButton(f"{item['name']} - {item['price']} V-Bucks", callback_data=item['name'])]
+        for item in items
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.message.reply_text(f"Productos en la categoría {category}:", reply_markup=reply_markup)
 
 # Configurar el bot
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
     
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(button))
+    application.add_handler(CallbackQueryHandler(category_selected))
     
     application.run_polling()
 
