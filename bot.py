@@ -1,11 +1,14 @@
 import os
+from telegram.ext import Application
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 if not BOT_TOKEN:
     raise ValueError("🚨 ERROR: BOT_TOKEN is missing! Check your environment variables.")
 
-print(f"🔹 BOT_TOKEN Loaded: {BOT_TOKEN[:5]}********")  # Prints only the first 5 characters for security
+print(f"🔹 BOT_TOKEN Loaded: {BOT_TOKEN[:5]}********")  # Debug: Verifica que se carga el token
+
+application = Application.builder().token(BOT_TOKEN.strip()).build()  # ← 🔥 Agregamos .strip()
 
 import stripe
 import requests
