@@ -1,8 +1,8 @@
 import os
 import stripe
 import telegram
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, MessageEntity
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes
 from flask import Flask, request, jsonify
 import random
 import time
@@ -40,21 +40,29 @@ def get_fortnite_items():
     headers = {"Authorization": FORTNITE_API_KEY}
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
-        data = response.json().get("shop", [])
-        categorized_items = {}
-        
-        for item in data:
-            category = item.get("section", {}).get("name", "Sin categoría")
-            if category not in categorized_items:
-                categorized_items[category] = []
-            categorized_items[category].append({
-                'name': item.get('displayName', 'Desconocido'),
-                'price': item.get('finalPrice', 'N/A')
-            })
-        return categorized_items
+        data = response.json()
+        items = data.get("shop", [])
+        products = {}
+        for item in items:
+            name = item.get("displayName", "Desconocido")
+            price = item.get("price", "N/A")
+            products[name] = {
+                'name': name,
+                'price': price
+            }
+        return products
     return {}
 
 PRODUCTS = get_fortnite_items()
+
+# Obtener información de Fortnite Crew
+def get_fortnite_crew():
+    url = "https://fortniteapi.io/v2/crew?lang=es"
+    headers = {"Authorization": FORTNITE_API_KEY}
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        return response.json()
+    return {}
 
 # Servidor Flask para recibir webhooks de Stripe
 app = Flask(__name__)
@@ -83,17 +91,16 @@ def stripe_webhook():
     
     return jsonify(success=True)
 
-# Función para mostrar productos categorizados
+# Función para mostrar productos
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not PRODUCTS:
         await update.message.reply_text("No hay productos disponibles en la tienda en este momento.")
         return
     
-    keyboard = []
-    for category, items in PRODUCTS.items():
-        buttons = [InlineKeyboardButton(f"{item['name']} - {item['price']} V-Bucks", callback_data=item['name']) for item in items]
-        keyboard.append(buttons)
-    
+    keyboard = [
+        [InlineKeyboardButton(f"{item['name']} - {item['price']} V-Bucks", callback_data=name)]
+        for name, item in PRODUCTS.items()
+    ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("Elige un producto de la tienda Fortnite:", reply_markup=reply_markup)
 
@@ -101,13 +108,29 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
-    await query.message.reply_text(f"Seleccionaste: {query.data}")
+    product = PRODUCTS.get(query.data, None)
+    if product:
+        message = f"🎮 Has seleccionado: {product['name']}\n💰 Precio: {product['price']} V-Bucks\n\nPara comprar, visita: https://berlingonzalez.shop/bot"
+        await query.message.reply_text(message)
+    else:
+        await query.message.reply_text("Error: No se encontró el producto.")
+
+# Función para mostrar Fortnite Crew
+async def fortnite_crew(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    crew_info = get_fortnite_crew()
+    if crew_info:
+        crew_data = crew_info.get('crew', {})
+        message = f"🎮 Fortnite Crew:\n{crew_data.get('title', 'No disponible')}\n\n💰 Precio: {crew_data.get('price', 'No disponible')}\n🎁 Recompensas: {crew_data.get('description', 'No disponible')}"
+        await update.message.reply_text(message)
+    else:
+        await update.message.reply_text("No se pudo obtener información sobre Fortnite Crew en este momento.")
 
 # Configurar el bot
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
     
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("crew", fortnite_crew))
     application.add_handler(CallbackQueryHandler(button))
     
     application.run_polling()
