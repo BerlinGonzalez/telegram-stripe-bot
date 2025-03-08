@@ -1,8 +1,8 @@
 import os
 import stripe
 import telegram
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext, MessageHandler, Filters
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, MessageEntity
+from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext, MessageHandler
 from flask import Flask, request, jsonify
 import random
 import time
@@ -38,17 +38,11 @@ def get_fortnite_items():
     url = "https://fortniteapi.io/v2/shop?lang=es"
     headers = {"Authorization": FORTNITE_API_KEY}
     response = requests.get(url, headers=headers)
-    
     if response.status_code == 200:
         data = response.json()
-        print(json.dumps(data, indent=4))  # Debugging: Mostrar la respuesta completa en los logs
         items = data.get("shop", [])
-        
-        # Verifica que cada ítem tenga una clave 'name'
-        return {item.get('name', 'Sin Nombre'): item for item in items}
-    else:
-        print(f"Error en la API de Fortnite: {response.status_code}")
-        return {}
+        return {item.get('displayName', 'Desconocido'): item for item in items}
+    return {}
 
 PRODUCTS = get_fortnite_items()
 
@@ -110,7 +104,7 @@ def username_handler(update: Update, context: CallbackContext) -> None:
             line_items=[{
                 "price_data": {
                     "currency": "usd",
-                    "product_data": {"name": product["name"]},
+                    "product_data": {"name": product["displayName"]},
                     "unit_amount": product["finalPrice"] * 100,
                 },
                 "quantity": 1,
@@ -118,10 +112,10 @@ def username_handler(update: Update, context: CallbackContext) -> None:
             mode="payment",
             success_url="https://tu-web.com/success",
             cancel_url="https://tu-web.com/cancel",
-            metadata={"user_id": update.message.chat_id, "product_name": product["name"], "fortnite_username": fortnite_username},
+            metadata={"user_id": update.message.chat_id, "product_name": product["displayName"], "fortnite_username": fortnite_username},
         )
         
-        update.message.reply_text(f"Compra {product['name']} aquí: {session.url}")
+        update.message.reply_text(f"Compra {product['displayName']} aquí: {session.url}")
         context.user_data["awaiting_username"] = False
 
 # Configurar el bot
@@ -131,7 +125,7 @@ def main():
     
     dp.add_handler(CommandHandler("start", start))
     dp.add_handler(CallbackQueryHandler(button))
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, username_handler))
+    dp.add_handler(MessageHandler(MessageEntity.TEXT, username_handler))
     
     updater.start_polling()
     updater.idle()
