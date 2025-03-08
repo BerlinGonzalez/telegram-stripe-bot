@@ -9,15 +9,15 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
 # Configuración de API
-FORTNITE_API_KEY = "281c13c9-171d1d7d-f0407eee-5aad11aa"
+FORTNITE_API_KEY = os.getenv("281c13c9-171d1d7d-f0407eee-5aad11aa")
 FORTNITE_API_URL = "https://fortniteapi.io/v2/shop?lang=es"
 
 # Configuración de Stripe
-stripe.api_key = "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"
-WEBHOOK_SECRET = "whsec_MHxLNtkVgtZBBJVEcbNGei2uoktiSQdD"
+stripe.api_key = os.getenv("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")
+WEBHOOK_SECRET = os.getenv("whsec_MHxLNtkVgtZBBJVEcbNGei2uoktiSQdD")
 
 # Configuración de Telegram
-BOT_TOKEN = "7779693447:AAES3qtISilvtOKjQ9oonph918LBQ7odt_I"
+BOT_TOKEN = os.getenv("7779693447:AAES3qtISilvtOKjQ9oonph918LBQ7odt_I")
 
 # Lista de cuentas de entrega en Fortnite
 FORTNITE_ACCOUNTS = [f"BerlinGonzalez{i}" for i in range(1, 46)]
@@ -71,6 +71,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    await query.answer()  # Responde inmediatamente para evitar que Telegram quede cargando
     item_id = query.data  # ID del ítem seleccionado
     items = obtener_items_fortnite()
     
@@ -84,23 +85,27 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     precio_vbucks = item.get("price", {}).get("finalPrice", 0)
     precio_usd = precio_vbucks * 0.01  # Convertimos V-Bucks a dólares (ejemplo)
     
-    session = stripe.checkout.Session.create(
-        payment_method_types=["card"],
-        line_items=[{
-            "price_data": {
-                "currency": "usd",
-                "product_data": {"name": nombre},
-                "unit_amount": int(precio_usd * 100),
-            },
-            "quantity": 1,
-        }],
-        mode="payment",
-        success_url="https://tu-web.com/success",
-        cancel_url="https://tu-web.com/cancel",
-        metadata={"user_id": query.message.chat_id, "product_name": nombre},
-    )
-    
-    await query.message.reply_text(f"Compra {nombre} aquí: {session.url}")
+    try:
+        session = stripe.checkout.Session.create(
+            payment_method_types=["card"],
+            line_items=[{
+                "price_data": {
+                    "currency": "usd",
+                    "product_data": {"name": nombre},
+                    "unit_amount": int(precio_usd * 100),
+                },
+                "quantity": 1,
+            }],
+            mode="payment",
+            success_url="https://tu-web.com/success",
+            cancel_url="https://tu-web.com/cancel",
+            metadata={"user_id": query.message.chat_id, "product_name": nombre},
+        )
+        
+        await query.message.reply_text(f"Compra {nombre} aquí: {session.url}")
+    except Exception as e:
+        await query.message.reply_text("⚠️ Error al generar el pago. Inténtalo de nuevo más tarde.")
+        print("Error en Stripe:", e)
 
 def keep_awake():
     while True:
