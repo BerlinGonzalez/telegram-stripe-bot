@@ -1,4 +1,4 @@
-281c13c9-171d1d7d-f0407eee-5aad11aaimport os
+import os
 import stripe
 import requests
 import random
