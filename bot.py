@@ -8,6 +8,7 @@ import random
 import time
 import requests
 import json
+import asyncio
 
 # Cargar variables de entorno
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -119,15 +120,14 @@ async def username_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         context.user_data["awaiting_username"] = False
 
 # Configurar el bot
-async def main():
+def main():
     application = Application.builder().token(BOT_TOKEN).build()
     
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(button))
     application.add_handler(MessageHandler(None, username_handler))
     
-    await application.run_polling()
+    application.run_polling()
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    main()
