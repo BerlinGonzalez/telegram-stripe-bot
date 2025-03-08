@@ -2,12 +2,11 @@ import os
 import stripe
 import telegram
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext, MessageHandler, Filters
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes, filters
 from flask import Flask, request, jsonify
 import random
 import time
 import requests
-import json
 
 # Cargar variables de entorno
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -53,12 +52,11 @@ app = Flask(__name__)
 def stripe_webhook():
     payload = request.get_data(as_text=True)
     sig_header = request.headers.get("Stripe-Signature")
-    event = None
-
+    
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, WEBHOOK_SECRET)
     except Exception as e:
-        return jsonify(success=False)
+        return jsonify(success=False), 400
 
     if event["type"] == "checkout.session.completed":
         session = event["data"]["object"]
@@ -74,27 +72,27 @@ def stripe_webhook():
     return jsonify(success=True)
 
 # Función para mostrar productos
-def start(update: Update, context: CallbackContext) -> None:
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton(f"{name} - {item['finalPrice']} V-Bucks", callback_data=name)]
         for name, item in PRODUCTS.items()
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text("Elige un producto de la tienda Fortnite:", reply_markup=reply_markup)
+    await update.message.reply_text("Elige un producto de la tienda Fortnite:", reply_markup=reply_markup)
 
 # Función para manejar la selección de productos
-def button(update: Update, context: CallbackContext) -> None:
+async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     product_name = query.data
     product = PRODUCTS.get(product_name)
-    
-    query.message.reply_text("Por favor, envíame tu nombre de usuario en Fortnite para continuar.")
+
+    await query.message.reply_text("Por favor, envíame tu nombre de usuario en Fortnite para continuar.")
     context.user_data["product"] = product
     context.user_data["awaiting_username"] = True
-    query.answer()
+    await query.answer()
 
 # Capturar el nombre de usuario de Fortnite
-def username_handler(update: Update, context: CallbackContext) -> None:
+async def username_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if "awaiting_username" in context.user_data and context.user_data["awaiting_username"]:
         fortnite_username = update.message.text
         product = context.user_data["product"]
@@ -115,20 +113,19 @@ def username_handler(update: Update, context: CallbackContext) -> None:
             metadata={"user_id": update.message.chat_id, "product_name": product["name"], "fortnite_username": fortnite_username},
         )
         
-        update.message.reply_text(f"Compra {product['name']} aquí: {session.url}")
+        await update.message.reply_text(f"Compra {product['name']} aquí: {session.url}")
         context.user_data["awaiting_username"] = False
 
 # Configurar el bot
-def main():
-    updater = Updater(BOT_TOKEN, use_context=True)
-    dp = updater.dispatcher
+async def main():
+    application = Application.builder().token(BOT_TOKEN).build()
     
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CallbackQueryHandler(button))
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, username_handler))
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CallbackQueryHandler(button))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, username_handler))
     
-    updater.start_polling()
-    updater.idle()
+    await application.run_polling()
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+    asyncio.run(main())
