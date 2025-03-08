@@ -42,12 +42,17 @@ def get_fortnite_items():
     if response.status_code == 200:
         data = response.json()
         print("DEBUG: Datos recibidos de la API:", data)  # Debugging
-        items = data.get("shop", {}).get("daily", []) + data.get("shop", {}).get("featured", [])
+        shop_items = data.get("shop", [])
+        
+        items = []
+        for category in shop_items:
+            items.extend(category.get("entries", []))
+        
         print("DEBUG: Items extraídos:", items)  # Debugging
         return {
             item.get('displayName', 'Desconocido'): {
                 'name': item.get('displayName', 'Desconocido'),
-                'price': item.get('price', 'N/A')
+                'price': item.get('finalPrice', 'N/A')
             }
             for item in items
         }
