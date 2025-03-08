@@ -8,7 +8,6 @@ import random
 import time
 import requests
 import json
-import asyncio
 
 # Cargar variables de entorno
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -42,7 +41,13 @@ def get_fortnite_items():
     if response.status_code == 200:
         data = response.json()
         items = data.get("shop", [])
-        return {item.get('displayName', 'Desconocido'): item for item in items}
+        return {
+            item.get('displayName', 'Desconocido'): {
+                'name': item.get('displayName', 'Desconocido'),
+                'price': item.get('price', {}).get('finalPrice', 'N/A')
+            }
+            for item in items
+        }
     return {}
 
 PRODUCTS = get_fortnite_items()
@@ -77,7 +82,7 @@ def stripe_webhook():
 # Función para mostrar productos
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     keyboard = [
-        [InlineKeyboardButton(f"{name} - {item['finalPrice']} V-Bucks", callback_data=name)]
+        [InlineKeyboardButton(f"{item['name']} - {item['price']} V-Bucks", callback_data=name)]
         for name, item in PRODUCTS.items()
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -105,29 +110,30 @@ async def username_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             line_items=[{
                 "price_data": {
                     "currency": "usd",
-                    "product_data": {"name": product["displayName"]},
-                    "unit_amount": product["finalPrice"] * 100,
+                    "product_data": {"name": product["name"]},
+                    "unit_amount": int(product["price"]) * 100,
                 },
                 "quantity": 1,
             }],
             mode="payment",
             success_url="https://tu-web.com/success",
             cancel_url="https://tu-web.com/cancel",
-            metadata={"user_id": update.message.chat_id, "product_name": product["displayName"], "fortnite_username": fortnite_username},
+            metadata={"user_id": update.message.chat_id, "product_name": product["name"], "fortnite_username": fortnite_username},
         )
         
-        await update.message.reply_text(f"Compra {product['displayName']} aquí: {session.url}")
+        await update.message.reply_text(f"Compra {product['name']} aquí: {session.url}")
         context.user_data["awaiting_username"] = False
 
 # Configurar el bot
-def main():
+async def main():
     application = Application.builder().token(BOT_TOKEN).build()
     
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(button))
     application.add_handler(MessageHandler(None, username_handler))
     
-    application.run_polling()
+    await application.run_polling()
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+    asyncio.run(main())
