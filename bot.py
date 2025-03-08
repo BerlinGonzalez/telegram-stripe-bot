@@ -40,10 +40,10 @@ def get_fortnite_items():
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
         data = response.json()
-        items = data.get("shop", {}).get("daily", []) + data.get("shop", {}).get("featured", [])
+        items = data.get("shop", [])  # Ajuste para la estructura correcta
         return {
-            item.get('name', 'Desconocido'): {
-                'name': item.get('name', 'Desconocido'),
+            item.get('displayName', 'Desconocido'): {
+                'name': item.get('displayName', 'Desconocido'),
                 'price': item.get('price', 'N/A')
             }
             for item in items
@@ -101,7 +101,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def fortnite_crew(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     crew_info = get_fortnite_crew()
     if crew_info:
-        message = f"🎮 Fortnite Crew:\n{crew_info.get('crew', {}).get('title', 'No disponible')}\n\n💰 Precio: {crew_info.get('crew', {}).get('price', 'No disponible')}\n🎁 Recompensas: {crew_info.get('crew', {}).get('description', 'No disponible')}"
+        crew_data = crew_info.get('crew', {})
+        message = f"🎮 Fortnite Crew:\n{crew_data.get('title', 'No disponible')}\n\n💰 Precio: {crew_data.get('price', 'No disponible')}\n🎁 Recompensas: {crew_data.get('description', 'No disponible')}"
         await update.message.reply_text(message)
     else:
         await update.message.reply_text("No se pudo obtener información sobre Fortnite Crew en este momento.")
